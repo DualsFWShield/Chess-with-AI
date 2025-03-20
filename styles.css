@@ -1,0 +1,105 @@
+body {
+    background-color: #121212;
+    color: #e0e0e0;
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    margin: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 20px;
+}
+
+h1, h2 {
+    color: #ffffff;
+}
+
+button {
+    background-color: #1f1f1f;
+    border: 1px solid #333;
+    color: #e0e0e0;
+    padding: 10px 20px;
+    margin: 5px;
+    font-size: 16px;
+    cursor: pointer;
+    transition: background-color 0.3s;
+}
+
+button:hover {
+    background-color: #333;
+}
+
+#main-menu, #difficulty-selection, #statistics {
+    background-color: #1c1c1c;
+    border: 1px solid #333;
+    padding: 20px;
+    margin-bottom: 20px;
+    text-align: center;
+    border-radius: 8px;
+    width: 480px;
+}
+
+#chessboard {
+    display: grid;
+    grid-template-columns: repeat(8, 60px);
+    grid-template-rows: repeat(8, 60px);
+    border: 2px solid #ffffff;
+    background-color: #333;
+    border-radius: 4px;
+    box-shadow: 0 0 10px rgba(0,0,0,0.8);
+}
+
+.square {
+    width: 60px;
+    height: 60px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    font-size: 40px;
+    cursor: pointer;
+    transition: background-color 0.3s;
+}
+
+.light {
+    background-color: #4e4e4e;
+}
+
+.dark {
+    background-color: #2e2e2e;
+}
+
+.highlight {
+    background-color: #ffeb3b !important;
+}
+
+#captured-white, #captured-black {
+    font-size: 24px;
+    margin: 10px;
+}
+
+#progress-bar {
+    width: 480px;
+    height: 20px;
+    display: flex;
+    margin: 20px 0;
+    background-color: #333;
+    border-radius: 10px;
+    overflow: hidden;
+}
+
+#white-progress {
+    background-color: #4e4e4e;
+    height: 100%;
+}
+
+#black-progress {
+    background-color: #2e2e2e;
+    height: 100%;
+}
+
+#timers {
+    display: flex;
+    justify-content: space-between;
+    width: 480px;
+    font-size: 20px;
+    margin-bottom: 10px;
+}

@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DFWS Chess</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <!-- Mode selection menu -->
+    <div id="main-menu">
+        <h1>Jeu d'Échecs Premium</h1>
+        <p>Sélectionnez le mode de jeu :</p>
+        <button id="mode-ai">Jouer contre l'IA</button>
+        <button id="mode-human">Jouer contre un humain</button>
+    </div>
+
+    <!-- AI difficulty selection (hidden by default) -->
+    <div id="difficulty-selection" style="display:none;">
+        <p>Sélectionnez la difficulté de l'IA:</p>
+        <button data-difficulty="Noob">Noob</button>
+        <button data-difficulty="Easy">Easy</button>
+        <button data-difficulty="Regular">Regular</button>
+        <button data-difficulty="Hard">Hard</button>
+        <button data-difficulty="Magnus Carlsen">Magnus Carlsen</button>
+        <button data-difficulty="Unbeatable">Unbeatable</button>
+    </div>
+
+    <!-- Statistics section -->
+    <div id="statistics">
+        <h2>Statistiques</h2>
+        <p>Parties jouées: <span id="games-played">0</span></p>
+        <p>Victoires: <span id="wins">0</span></p>
+        <p>Défaites: <span id="losses">0</span></p>
+        <p>Nuls: <span id="draws">0</span></p>
+    </div>
+
+    <div id="timers">
+        <div>Blancs: <span id="white-time">10:00</span></div>
+        <div>Noirs: <span id="black-time">10:00</span></div>
+    </div>
+    <div id="captured-white"></div>
+    <div id="progress-bar">
+        <div id="white-progress"></div>
+        <div id="black-progress"></div>
+    </div>
+    <div id="chessboard"></div>
+    <div id="captured-black"></div>
+    <script src="script.js"></script>
+</body>
+</html>
