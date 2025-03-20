@@ -115,7 +115,18 @@ function endGame(winner) {
     updateStatistics();
     clearInterval(timerInterval);
     alert(`Partie terminée. Gagnant: ${winner}`);
-    // Optionnel : recharger la page ou permettre de rejouer
+    
+    // Ajout d'un bouton "Rejouer"
+    const replayButton = document.createElement('button');
+    replayButton.textContent = "Rejouer";
+    replayButton.id = "replay-button";
+    replayButton.style.marginTop = "20px";
+    replayButton.addEventListener('click', () => {
+        location.reload();
+    });
+    
+    // Ajout du bouton au body (ou dans un autre conteneur si souhaité)
+    document.body.appendChild(replayButton);
 }
 
 // --- AI functions ---
@@ -144,6 +155,121 @@ function evaluateMove(move) {
     return target ? (pieceValues[target.toLowerCase()] || 0) : 0;
 }
 
+// --- Nouvelles fonctions pour Minimax ---
+function cloneBoard(board) {
+    return board.map(row => row.slice());
+}
+
+function applyMoveOnBoard(board, move) {
+    const newBoard = cloneBoard(board);
+    newBoard[move.to.row][move.to.col] = newBoard[move.from.row][move.from.col];
+    newBoard[move.from.row][move.from.col] = '';
+    return newBoard;
+}
+
+function evaluateBoard(board) {
+    let score = 0;
+    for (let r = 0; r < 8; r++) {
+        for (let c = 0; c < 8; c++) {
+            const piece = board[r][c];
+            if (piece) {
+                const value = pieceValues[piece.toLowerCase()] || 0;
+                // Les pièces noires (IA) ajoutent au score, les blanches le soustraient
+                score += (piece === piece.toLowerCase() ? value : -value);
+            }
+        }
+    }
+    // Pénalise si le roi noir (IA) est en échec et récompense si le roi adverse l'est
+    if (isKingInCheckForBoard(board, 'black')) {
+        score -= 50;
+    }
+    if (isKingInCheckForBoard(board, 'white')) {
+        score += 50;
+    }
+    return score;
+}
+
+function getAllPossibleMovesForBoard(board, color) {
+    const moves = [];
+    for (let r = 0; r < 8; r++) {
+        for (let c = 0; c < 8; c++) {
+            const piece = board[r][c];
+            if (piece && (piece === piece.toUpperCase() ? 'white' : 'black') === color) {
+                const possible = getPossibleMoves(piece, r, c);
+                possible.forEach(move => {
+                    moves.push({
+                        from: { row: r, col: c },
+                        to: { row: move[0], col: move[1] },
+                        piece: piece
+                    });
+                });
+            }
+        }
+    }
+    return moves;
+}
+
+function minimax(board, depth, isMaximizing, alpha, beta) {
+    if (depth === 0) {
+        return evaluateBoard(board);
+    }
+    const currentColor = isMaximizing ? 'black' : 'white';
+    const possibleMoves = getAllPossibleMovesForBoard(board, currentColor);
+    if (possibleMoves.length === 0) {
+        return evaluateBoard(board);
+    }
+    if (isMaximizing) {
+        let maxEval = -Infinity;
+        for (const move of possibleMoves) {
+            const newBoard = applyMoveOnBoard(board, move);
+            const evalScore = minimax(newBoard, depth - 1, false, alpha, beta);
+            maxEval = Math.max(maxEval, evalScore);
+            alpha = Math.max(alpha, evalScore);
+            if (beta <= alpha) break;
+        }
+        return maxEval;
+    } else {
+        let minEval = Infinity;
+        for (const move of possibleMoves) {
+            const newBoard = applyMoveOnBoard(board, move);
+            const evalScore = minimax(newBoard, depth - 1, true, alpha, beta);
+            minEval = Math.min(minEval, evalScore);
+            beta = Math.min(beta, evalScore);
+            if (beta <= alpha) break;
+        }
+        return minEval;
+    }
+}
+
+function isKingInCheckForBoard(board, color) {
+    const kingSymbol = color === 'white' ? 'K' : 'k';
+    let kingPos = null;
+    for (let r = 0; r < 8; r++) {
+        for (let c = 0; c < 8; c++) {
+            if (board[r][c] === kingSymbol) {
+                kingPos = [r, c];
+                break;
+            }
+        }
+        if (kingPos) break;
+    }
+    if (!kingPos) return true;
+    const opponentColor = color === 'white' ? 'black' : 'white';
+    for (let r = 0; r < 8; r++) {
+        for (let c = 0; c < 8; c++) {
+            const piece = board[r][c];
+            if (piece && (piece === piece.toUpperCase() ? 'white' : 'black') === opponentColor) {
+                const moves = getPossibleMovesForBoard(piece, board, r, c);
+                if (moves.some(move => move[0] === kingPos[0] && move[1] === kingPos[1])) {
+                    return true;
+                }
+            }
+        }
+    }
+    return false;
+}
+
+// --- AI functions ---
 function aiMakeMove() {
     setTimeout(() => {
         const moves = getAllPossibleMoves('black');
@@ -152,29 +278,52 @@ function aiMakeMove() {
             clearInterval(timerInterval);
             return;
         }
+        
+        // Si un coup permettant de capturer le roi est disponible, le choisir de préférence
+        const kingCaptureMoves = moves.filter(m => {
+            const target = initialBoard[m.to.row][m.to.col];
+            return target === 'K' || target === 'k';
+        });
         let chosenMove;
-        const difficulty = aiDifficulty.toLowerCase();
-        if (difficulty === 'noob') {
-            chosenMove = moves[Math.floor(Math.random() * moves.length)];
-        } else if (difficulty === 'easy') {
-            const captureMoves = moves.filter(m => evaluateMove(m) > 0);
-            chosenMove = (captureMoves.length > 0 && Math.random() < 0.5)
-                         ? captureMoves[Math.floor(Math.random() * captureMoves.length)]
-                         : moves[Math.floor(Math.random() * moves.length)];
-        } else if (difficulty === 'regular') {
-            chosenMove = moves[Math.floor(Math.random() * moves.length)];
-        } else if (difficulty === 'hard' || difficulty === 'magnus carlsen' || difficulty === 'unbeatable') {
-            let bestValue = -1, bestMoves = [];
-            moves.forEach(m => {
-                const val = evaluateMove(m);
-                if (val > bestValue) {
-                    bestValue = val;
-                    bestMoves = [m];
-                } else if (val === bestValue) bestMoves.push(m);
-            });
-            chosenMove = bestMoves[Math.floor(Math.random() * bestMoves.length)];
+        if (kingCaptureMoves.length > 0) {
+            chosenMove = kingCaptureMoves[Math.floor(Math.random() * kingCaptureMoves.length)];
         } else {
-            chosenMove = moves[Math.floor(Math.random() * moves.length)];
+            const difficultyLower = aiDifficulty.toLowerCase();
+            if (difficultyLower === 'noob') {
+                chosenMove = moves[Math.floor(Math.random() * moves.length)];
+            } else if (difficultyLower === 'easy') {
+                const captureMoves = moves.filter(m => evaluateMove(m) > 0);
+                chosenMove = (captureMoves.length > 0 && Math.random() < 0.5)
+                             ? captureMoves[Math.floor(Math.random() * captureMoves.length)]
+                             : moves[Math.floor(Math.random() * moves.length)];
+            } else if (difficultyLower === 'regular') {
+                chosenMove = moves[Math.floor(Math.random() * moves.length)];
+            } else if (
+                difficultyLower === 'hard' ||
+                difficultyLower === 'very hard' ||
+                difficultyLower === 'super hard' ||
+                difficultyLower === 'super duper hard' ||
+                difficultyLower === 'super duper hardest' ||
+                difficultyLower === 'super duper hardest plus' ||
+                difficultyLower === 'magnus carlsen' ||
+                difficultyLower === 'unbeatable'
+            ) {
+                // Recherche Minimax pour renforcer l'IA
+                let bestScore = -Infinity;
+                let bestMove = null;
+                const searchDepth = 3; // Profondeur de recherche améliorant la prise de décision
+                for (const move of moves) {
+                    const newBoard = applyMoveOnBoard(initialBoard, move);
+                    const score = minimax(newBoard, searchDepth - 1, false, -Infinity, Infinity);
+                    if (score > bestScore) {
+                        bestScore = score;
+                        bestMove = move;
+                    }
+                }
+                chosenMove = bestMove;
+            } else {
+                chosenMove = moves[Math.floor(Math.random() * moves.length)];
+            }
         }
 
         const fromRow = chosenMove.from.row;
@@ -182,6 +331,7 @@ function aiMakeMove() {
         const toRow = chosenMove.to.row;
         const toCol = chosenMove.to.col;
         
+        // Détection de la capture du roi (échec et mat)
         if (initialBoard[toRow][toCol] === 'K' || initialBoard[toRow][toCol] === 'k') {
             alert('Partie terminée ! Le roi a été capturé par l’IA.');
             endGame('black');
@@ -314,6 +464,104 @@ function getPossibleMoves(piece, row, col) {
                     const r = row + dr, c = col + dc;
                     if (r >= 0 && r < 8 && c >= 0 && c < 8 &&
                         (!initialBoard[r][c] || (initialBoard[r][c].toUpperCase() === initialBoard[r][c] ? 'white' : 'black') !== color))
+                        moves.push([r, c]);
+                }
+            }
+            break;
+        }
+    }
+    return moves;
+}
+
+function getPossibleMovesForBoard(piece, board, row, col) {
+    const moves = [];
+    const color = piece === piece.toUpperCase() ? 'white' : 'black';
+    switch (piece.toLowerCase()) {
+        case 'p': {
+            const direction = color === 'white' ? -1 : 1;
+            const startRow = color === 'white' ? 6 : 1;
+            if (row + direction >= 0 && row + direction < 8 && !board[row + direction][col]) {
+                moves.push([row + direction, col]);
+                if (row === startRow && !board[row + 2 * direction][col]) {
+                    moves.push([row + 2 * direction, col]);
+                }
+            }
+            if (col > 0 && row + direction >= 0 && row + direction < 8) {
+                const leftPiece = board[row + direction][col - 1];
+                if (leftPiece && (leftPiece.toUpperCase() === leftPiece ? 'white' : 'black') !== color) {
+                    moves.push([row + direction, col - 1]);
+                }
+            }
+            if (col < 7 && row + direction >= 0 && row + direction < 8) {
+                const rightPiece = board[row + direction][col + 1];
+                if (rightPiece && (rightPiece.toUpperCase() === rightPiece ? 'white' : 'black') !== color) {
+                    moves.push([row + direction, col + 1]);
+                }
+            }
+            break;
+        }
+        case 'r': {
+            for (let d of [[-1, 0], [1, 0], [0, -1], [0, 1]]) {
+                for (let i = 1; i < 8; i++) {
+                    const r = row + d[0] * i, c = col + d[1] * i;
+                    if (r < 0 || r > 7 || c < 0 || c > 7) break;
+                    if (!board[r][c]) moves.push([r, c]);
+                    else {
+                        if ((board[r][c].toUpperCase() === board[r][c] ? 'white' : 'black') !== color)
+                            moves.push([r, c]);
+                        break;
+                    }
+                }
+            }
+            break;
+        }
+        case 'n': {
+            const knightMoves = [[-2, -1], [-2, 1], [-1, -2], [-1, 2], [1, -2], [1, 2], [2, -1], [2, 1]];
+            for (let m of knightMoves) {
+                const r = row + m[0], c = col + m[1];
+                if (r >= 0 && r < 8 && c >= 0 && c < 8 &&
+                    (!board[r][c] || (board[r][c].toUpperCase() === board[r][c] ? 'white' : 'black') !== color))
+                    moves.push([r, c]);
+            }
+            break;
+        }
+        case 'b': {
+            for (let d of [[-1, -1], [-1, 1], [1, -1], [1, 1]]) {
+                for (let i = 1; i < 8; i++) {
+                    const r = row + d[0] * i, c = col + d[1] * i;
+                    if (r < 0 || r > 7 || c < 0 || c > 7) break;
+                    if (!board[r][c]) moves.push([r, c]);
+                    else {
+                        if ((board[r][c].toUpperCase() === board[r][c] ? 'white' : 'black') !== color)
+                            moves.push([r, c]);
+                        break;
+                    }
+                }
+            }
+            break;
+        }
+        case 'q': {
+            for (let d of [[-1, 0], [1, 0], [0, -1], [0, 1], [-1, -1], [-1, 1], [1, -1], [1, 1]]) {
+                for (let i = 1; i < 8; i++) {
+                    const r = row + d[0] * i, c = col + d[1] * i;
+                    if (r < 0 || r > 7 || c < 0 || c > 7) break;
+                    if (!board[r][c]) moves.push([r, c]);
+                    else {
+                        if ((board[r][c].toUpperCase() === board[r][c] ? 'white' : 'black') !== color)
+                            moves.push([r, c]);
+                        break;
+                    }
+                }
+            }
+            break;
+        }
+        case 'k': {
+            for (let dr = -1; dr <= 1; dr++) {
+                for (let dc = -1; dc <= 1; dc++) {
+                    if (dr === 0 && dc === 0) continue;
+                    const r = row + dr, c = col + dc;
+                    if (r >= 0 && r < 8 && c >= 0 && c < 8 &&
+                        (!board[r][c] || (board[r][c].toUpperCase() === board[r][c] ? 'white' : 'black') !== color))
                         moves.push([r, c]);
                 }
             }
