@@ -29,6 +29,7 @@
         <button data-difficulty="Super Duper Hardest Plus">Super Duper Hardest Plus</button>
         <button data-difficulty="Magnus Carlsen">Magnus Carlsen</button>
         <button data-difficulty="Unbeatable">Unbeatable</button>
+        <button data-difficulty="Adaptative">Adaptative</button>
     </div>
 
     <!-- Statistics section -->
@@ -51,6 +52,22 @@
     </div>
     <div id="chessboard"></div>
     <div id="captured-black"></div>
-    <script src="scripts.js"></script>
+
+    <div id="promotion-modal" class="modal">
+        <div class="modal-content">
+            <h3>Choisissez une pièce pour la promotion</h3>
+            <div class="promotion-options">
+                <!-- Les pièces seront ajoutées dynamiquement ici -->
+            </div>
+        </div>
+    </div>
+    
+    <div id="game-end-modal" class="modal" style="display: none;">
+        <div class="modal-content">
+            <h3 id="game-end-message"></h3>
+            <button id="play-again">Jouer à nouveau</button>
+        </div>
+    </div>
+    <script src="scripts-v2.js"></script>
 </body>
 </html>
