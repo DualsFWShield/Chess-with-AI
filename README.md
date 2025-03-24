@@ -27,7 +27,7 @@ DFWS Chess is a premium dark-mode chess game built with HTML, CSS, and JavaScrip
 Clone the repository then open the project folder in Visual Studio Code:
 
 ```bash
-git clone https://github.com/yourusername/chess-with-ai.git
+git clone https://github.com/dualsfwshield/chess-with-ai.git
 cd chess-with-ai
 ```
 
