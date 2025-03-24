@@ -71,6 +71,27 @@ function showPromotionModal(color, callback) {
     modal.style.display = 'block';
 }
 
+function updateProgressBar() {
+    const whiteScore = capturedBlack.reduce((sum, piece) => sum + (pieceValues[piece] || 0), 0);
+    const blackScore = capturedWhite.reduce((sum, piece) => sum + (pieceValues[piece.toLowerCase()] || 0), 0);
+    const totalScore = whiteScore + blackScore || 1;
+    const whitePercentage = (whiteScore / totalScore) * 100;
+    const blackPercentage = (blackScore / totalScore) * 100;
+    
+    document.getElementById('white-progress').style.width = `${whitePercentage}%`;
+    document.getElementById('black-progress').style.width = `${blackPercentage}%`;
+}
+
+function checkAndUpdateKingStatus() {
+    if (isKingInCheck('white')) {
+        updateGameStatus('Échec au roi blanc !');
+    } else if (isKingInCheck('black')) {
+        updateGameStatus('Échec au roi noir !');
+    } else {
+        updateGameStatus('Statut : Pas de quoi s\'inquiéter !');
+    }
+}
+
 function showGameEndModal(message) {
     const modal = document.getElementById('game-end-modal');
     document.getElementById('game-end-message').textContent = message;
@@ -81,29 +102,9 @@ function showGameEndModal(message) {
     };
 }
 
-const style = document.createElement('style');
-style.textContent = `
-.game-alert {
-    position: fixed;
-    top: 20px;
-    left: 50%;
-    transform: translateX(-50%);
-    background-color: #333;
-    color: white;
-    padding: 10px 20px;
-    border-radius: 5px;
-    z-index: 1000;
-    animation: fadeInOut 2s ease-in-out;
+function updateGameStatus(statusText) {
+    document.getElementById('game-status').textContent = statusText;
 }
-
-@keyframes fadeInOut {
-    0% { opacity: 0; }
-    15% { opacity: 1; }
-    85% { opacity: 1; }
-    100% { opacity: 0; }
-}
-`;
-document.head.appendChild(style);
 
 // --- AI difficulty selection using buttons ---
 document.querySelectorAll('#difficulty-selection button').forEach(button => {
@@ -122,32 +123,20 @@ function startGame() {
     startTimer();
 }
 
-// Remplacer les alerts par cette fonction
-function showAlert(message) {
-    const alertDiv = document.createElement('div');
-    alertDiv.className = 'game-alert';
-    alertDiv.textContent = message;
-    document.body.appendChild(alertDiv);
-    
-    setTimeout(() => {
-        alertDiv.remove();
-    }, 2000);
-}
-
 // --- Timer functions ---
 function startTimer() {
     timerInterval = setInterval(() => {
         if (currentPlayer === 'white') {
             whiteTime--;
             if (whiteTime <= 0) {
-                showAlert('Temps écoulé pour les blancs !');
+                updateGameStatus('Temps écoulé pour les blancs !');
                 endGame('black');
                 return;
             }
         } else {
             blackTime--;
             if (blackTime <= 0) {
-                showAlert('Temps écoulé pour les noirs !');
+                updateGameStatus('Temps écoulé pour les noirs !');
                 endGame('white');
                 return;
             }
@@ -418,7 +407,7 @@ function aiMakeMove() {
     setTimeout(() => {
         const moves = getAllPossibleMoves('black');
         if (moves.length === 0) {
-            showAlert('Match nul ! L\'IA ne peut plus jouer.');
+            updateGameStatus('Match nul ! L\'IA ne peut plus jouer.');
             clearInterval(timerInterval);
             return;
         }
@@ -526,7 +515,7 @@ function aiMakeMove() {
         
         // Détection de la capture du roi
         if (initialBoard[toRow][toCol] === 'K' || initialBoard[toRow][toCol] === 'k') {
-            showAlert('Partie terminée ! Le roi a été capturé par l\'IA.');
+            updateGameStatus('Partie terminée ! Le roi a été capturé par l\'IA.');
             endGame('black');
             return;
         }
@@ -554,22 +543,23 @@ function aiMakeMove() {
         createBoard();
         updateCapturedPieces();
         updateProgressBar();
+        checkAndUpdateKingStatus();
 
         // Vérifier l'échec et mat ou le pat
         if (isCheckmate('white')) {
-            showAlert('Échec et mat ! L\'IA gagne !');
+            updateGameStatus('Échec et mat ! L\'IA gagne !');
             endGame('black');
             return;
         }
         if (isStalemate('white')) {
-            showAlert('Pat ! Match nul !');
+            updateGameStatus('Pat ! Match nul !');
             endGame('draw');
             return;
         }
 
         // Vérifier l'échec simple
         if (isKingInCheck('white')) {
-            showAlert('Échec au roi blanc !');
+            updateGameStatus('Échec au roi blanc !');
         }
 
         currentPlayer = 'white';
@@ -936,7 +926,7 @@ function handleSquareClick(event) {
                 initialBoard[row][rookFromCol] = '';
             }
             if (initialBoard[row][col] === 'k' || initialBoard[row][col] === 'K') {
-                showAlert('Partie terminée ! Le roi a été capturé.');
+                updateGameStatus('Partie terminée ! Le roi a été capturé.');
                 endGame(currentPlayer === 'white' ? 'white' : 'black');
                 return;
             }
@@ -957,8 +947,9 @@ function handleSquareClick(event) {
                     createBoard();
                     updateCapturedPieces();
                     updateProgressBar();
-                    if (isKingInCheck('white')) showAlert('Échec au roi blanc !');
-                    else if (isKingInCheck('black')) showAlert('Échec au roi noir !');
+                    checkAndUpdateKingStatus();
+                    if (isKingInCheck('white')) updateGameStatus('Échec au roi blanc !');
+                    else if (isKingInCheck('black')) updateGameStatus('Échec au roi noir !');
                     currentPlayer = currentPlayer === 'white' ? 'black' : 'white';
                     if (gameMode === 'ai' && currentPlayer === 'black') {
                         aiMakeMove();
@@ -970,23 +961,24 @@ function handleSquareClick(event) {
             createBoard();
             updateCapturedPieces();
             updateProgressBar();
+            checkAndUpdateKingStatus();
 
             // Vérifier l'échec et mat ou le pat
             const nextPlayer = currentPlayer === 'white' ? 'black' : 'white';
             if (isCheckmate(nextPlayer)) {
-                showAlert(`Échec et mat ! Les ${currentPlayer === 'white' ? 'Blancs' : 'Noirs'} gagnent !`);
+                updateGameStatus(`Échec et mat ! Les ${currentPlayer === 'white' ? 'Blancs' : 'Noirs'} gagnent !`);
                 endGame(currentPlayer);
                 return;
             }
             if (isStalemate(nextPlayer)) {
-                showAlert('Pat ! Match nul !');
+                updateGameStatus('Pat ! Match nul !');
                 endGame('draw');
                 return;
             }
 
             // Vérifier l'échec simple
             if (isKingInCheck(nextPlayer)) {
-                showAlert(`Échec au roi ${nextPlayer === 'white' ? 'blanc' : 'noir'} !`);
+                updateGameStatus(`Échec au roi ${nextPlayer === 'white' ? 'blanc' : 'noir'} !`);
             }
 
             currentPlayer = nextPlayer;
@@ -1005,6 +997,8 @@ function handleSquareClick(event) {
         const moves = getPossibleMoves(piece, row, col);
         highlightMoves(moves);
     }
+    updateProgressBar()
+    checkAndUpdateKingStatus();
 }
 
 function updateCapturedPieces() {
@@ -1013,11 +1007,14 @@ function updateCapturedPieces() {
 }
 
 function updateProgressBar() {
-    const whiteScore = capturedBlack.reduce((sum, piece) => sum + (pieceValues[piece] || 0), 0);
-    const blackScore = capturedWhite.reduce((sum, piece) => sum + (pieceValues[piece.toLowerCase()] || 0), 0);
+    // capturedWhite holds pieces captured by white (i.e. black pieces)
+    const whiteScore = capturedWhite.reduce((sum, piece) => sum + (pieceValues[piece.toLowerCase()] || 0), 0);
+    // capturedBlack holds pieces captured by black (i.e. white pieces)
+    const blackScore = capturedBlack.reduce((sum, piece) => sum + (pieceValues[piece.toLowerCase()] || 0), 0);
     const totalScore = whiteScore + blackScore || 1;
     const whitePercentage = (whiteScore / totalScore) * 100;
     const blackPercentage = (blackScore / totalScore) * 100;
+    
     document.getElementById('white-progress').style.width = `${whitePercentage}%`;
     document.getElementById('black-progress').style.width = `${blackPercentage}%`;
 }
@@ -1059,3 +1056,4 @@ createBoard();
 updateCapturedPieces();
 updateProgressBar();
 updateStatistics();
+checkAndUpdateKingStatus();
