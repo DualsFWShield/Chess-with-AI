@@ -237,31 +237,40 @@ function isStalemate(color) {
     if (isKingInCheck(color)) return false;
 
     // Vérifie s'il reste des mouvements légaux
+    let hasLegalMoves = false;
     for (let r = 0; r < 8; r++) {
         for (let c = 0; c < 8; c++) {
             const piece = initialBoard[r][c];
             if (piece && (piece === piece.toUpperCase() ? 'white' : 'black') === color) {
                 const moves = getPossibleMoves(piece, r, c);
-                if (moves.length > 0) return false;
+                if (moves.length > 0) {
+                    hasLegalMoves = true;
+                    break;
+                }
             }
         }
+        if (hasLegalMoves) break;
     }
 
-    // Vérifie s'il reste assez de pièces pour gagner
+    if (hasLegalMoves) return false;
+
+    // Vérifie les conditions de matériel insuffisant
     const pieces = initialBoard.flat().filter(p => p !== '');
-    if (pieces.length === 2) {
-        // Seulement les rois
-        return true;
-    }
+    
+    // Roi contre roi
+    if (pieces.length === 2) return true;
+
+    // Roi et fou/cavalier contre roi
     if (pieces.length === 3) {
-        // Roi + Fou ou Cavalier = pat
         const nonKings = pieces.filter(p => p.toLowerCase() !== 'k');
-        if (nonKings.length === 1 && ['b', 'n', 'B', 'N'].includes(nonKings[0])) {
+        if (nonKings.length === 1 && 
+            (nonKings[0].toLowerCase() === 'b' || nonKings[0].toLowerCase() === 'n')) {
             return true;
         }
     }
 
-    return false;
+    // Si aucun mouvement légal n'est possible mais il y a suffisamment de matériel
+    return !hasLegalMoves;
 }
 
 // --- AI functions ---
@@ -738,24 +747,21 @@ function getPossibleMoves(piece, row, col, board = initialBoard) {
         tempBoard[toRow][toCol] = tempBoard[row][col];
         tempBoard[row][col] = '';
         
-        // Trouver la position du roi
-        let kingRow = row, kingCol = col;
-        if (piece.toLowerCase() !== 'k') {
-            for (let r = 0; r < 8; r++) {
-                for (let c = 0; c < 8; c++) {
-                    if (tempBoard[r][c] === (color === 'white' ? 'K' : 'k')) {
-                        kingRow = r;
-                        kingCol = c;
-                        break;
-                    }
-                }
-            }
-        } else {
-            kingRow = toRow;
-            kingCol = toCol;
+        // Si c'est un mouvement du roi, vérifier la nouvelle position
+        if (piece.toLowerCase() === 'k') {
+            return !isSquareAttacked(toRow, toCol, color === 'white' ? 'black' : 'white', tempBoard);
         }
         
-        return !isSquareAttacked(kingRow, kingCol, color === 'white' ? 'black' : 'white', tempBoard);
+        // Sinon, trouver la position du roi et vérifier
+        const kingSymbol = color === 'white' ? 'K' : 'k';
+        for (let r = 0; r < 8; r++) {
+            for (let c = 0; c < 8; c++) {
+                if (tempBoard[r][c] === kingSymbol) {
+                    return !isSquareAttacked(r, c, color === 'white' ? 'black' : 'white', tempBoard);
+                }
+            }
+        }
+        return true;
     });
 
     // Ajouter les mouvements de roque si possible
@@ -780,29 +786,25 @@ function canCastle(color, side, board = initialBoard) {
     // Vérifie la position initiale du roi
     if (board[row][4] !== king) return false;
 
+    // Vérifier si le roi est en échec sans utiliser isKingInCheck
+    const kingPos = [row, 4];
+    if (isSquareAttacked(kingPos[0], kingPos[1], opponentColor, board)) return false;
+
     if (side === 'kingside') {
         if (board[row][7] !== rook) return false;
         if (board[row][5] !== '' || board[row][6] !== '') return false;
         
         // Vérifie si les cases sont attaquées
-        if (isSquareAttacked(row, 4, opponentColor, board) ||
-            isSquareAttacked(row, 5, opponentColor, board) ||
-            isSquareAttacked(row, 6, opponentColor, board)) {
-            return false;
-        }
+        return !isSquareAttacked(row, 5, opponentColor, board) && 
+               !isSquareAttacked(row, 6, opponentColor, board);
     } else {
         if (board[row][0] !== rook) return false;
         if (board[row][1] !== '' || board[row][2] !== '' || board[row][3] !== '') return false;
         
         // Vérifie si les cases sont attaquées
-        if (isSquareAttacked(row, 4, opponentColor, board) ||
-            isSquareAttacked(row, 3, opponentColor, board) ||
-            isSquareAttacked(row, 2, opponentColor, board)) {
-            return false;
-        }
+        return !isSquareAttacked(row, 3, opponentColor, board) && 
+               !isSquareAttacked(row, 2, opponentColor, board);
     }
-    
-    return true;
 }
 
 function getPossibleMovesForBoard(piece, board, row, col) {
@@ -919,20 +921,19 @@ function handleSquareClick(event) {
     if (selectedPiece) {
         const fromRow = parseInt(selectedPiece.dataset.row);
         const fromCol = parseInt(selectedPiece.dataset.col);
-        const moves = getPossibleMoves(initialBoard[fromRow][fromCol], fromRow, fromCol);
+        const piece = initialBoard[fromRow][fromCol];
+        const moves = getPossibleMoves(piece, fromRow, fromCol);
 
         if (moves.some(([r, c]) => r === row && c === col)) {
+            // Gestion du roque
             if (piece.toLowerCase() === 'k' && Math.abs(col - fromCol) === 2) {
-                // Petit roque
-                if (col > fromCol) {
-                    initialBoard[fromRow][col - 1] = initialBoard[fromRow][7];
-                    initialBoard[fromRow][7] = '';
-                }
-                // Grand roque
-                else {
-                    initialBoard[fromRow][col + 1] = initialBoard[fromRow][0];
-                    initialBoard[fromRow][0] = '';
-                }
+                const isKingside = col > fromCol;
+                const rookFromCol = isKingside ? 7 : 0;
+                const rookToCol = isKingside ? col - 1 : col + 1;
+                
+                // Déplacer la tour
+                initialBoard[row][rookToCol] = initialBoard[row][rookFromCol];
+                initialBoard[row][rookFromCol] = '';
             }
             if (initialBoard[row][col] === 'k' || initialBoard[row][col] === 'K') {
                 showAlert('Partie terminée ! Le roi a été capturé.');
@@ -1021,23 +1022,31 @@ function updateProgressBar() {
     document.getElementById('black-progress').style.width = `${blackPercentage}%`;
 }
 
-function isKingInCheck(color) {
+function isKingInCheck(color, board = initialBoard) {
     let kingPos;
+    const kingSymbol = color === 'white' ? 'K' : 'k';
+    
+    // Trouver le roi
     for (let r = 0; r < 8; r++) {
         for (let c = 0; c < 8; c++) {
-            if (initialBoard[r][c] === (color === 'white' ? 'K' : 'k')) {
+            if (board[r][c] === kingSymbol) {
                 kingPos = [r, c];
                 break;
             }
         }
+        if (kingPos) break;
     }
+
+    if (!kingPos) return true;
+
+    // Vérifier les attaques
     const opponentColor = color === 'white' ? 'black' : 'white';
     for (let r = 0; r < 8; r++) {
         for (let c = 0; c < 8; c++) {
-            const piece = initialBoard[r][c];
+            const piece = board[r][c];
             if (piece && (piece === piece.toUpperCase() ? 'white' : 'black') === opponentColor) {
-                const moves = getPossibleMoves(piece, r, c);
-                if (moves.some(([mr, mc]) => kingPos && mr === kingPos[0] && mc === kingPos[1])) {
+                const moves = getPossibleMovesWithoutCheck(piece, r, c, board);
+                if (moves.some(([mr, mc]) => mr === kingPos[0] && mc === kingPos[1])) {
                     return true;
                 }
             }
