@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DFWS Chess</title>
+    <link href="https://fonts.googleapis.com/css2?family=Roboto+Mono:wght@400;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <!-- Mode selection menu -->
+    <div id="main-menu">
+        <h1>Jeu d'Échecs</h1>
+        <p>Sélectionnez le mode de jeu :</p>
+        <button id="mode-ai">Jouer contre l'IA</button>
+        <button id="mode-human">Jouer contre un humain</button>
+    </div>
+
+    <!-- AI difficulty selection (hidden by default) -->
+    <div id="difficulty-selection" style="display:none;">
+        <p>Sélectionnez la difficulté de l'IA:</p>
+        <button data-difficulty="Noob">Noob</button>
+        <button data-difficulty="Easy">Easy</button>
+        <button data-difficulty="Regular">Regular</button>
+        <button data-difficulty="Hard">Hard</button>
+        <button data-difficulty="Very Hard">Very Hard</button>
+        <button data-difficulty="Super Hard">Super Hard</button>
+        <button data-difficulty="Super Duper Hard">Super Duper Hard</button>
+        <button data-difficulty="Super Duper Hardest">Super Duper Hardest</button>
+        <button data-difficulty="Super Duper Hardest Plus">Super Duper Hardest Plus</button>
+        <button data-difficulty="Magnus Carlsen">Magnus Carlsen</button>
+        <button data-difficulty="Unbeatable">Unbeatable</button>
+        <button data-difficulty="Adaptative">Adaptative</button>
+    </div>
+
+    <!-- Statistics section -->
+    <div id="statistics">
+        <h2>Stats</h2>
+        <p>Parties jouées: <span id="games-played">0</span></p>
+        <p>Victoires: <span id="wins">0</span></p>
+        <p>Défaites: <span id="losses">0</span></p>
+        <p>Nuls: <span id="draws">0</span></p>
+    </div>
+
+    <div id="timers">
+        <div>Blancs: <span id="white-time">10:00</span></div>
+        <div>Noirs: <span id="black-time">10:00</span></div>
+    </div>
+    <div id="captured-white"></div>
+    <div id="progress-bar">
+        <div id="white-progress"></div>
+        <div id="black-progress"></div>
+    </div>
+    <div id="chessboard"></div>
+    <div id="captured-black"></div>
+
+    <div id="promotion-modal" class="modal">
+        <div class="modal-content">
+            <h3>Choisissez une pièce pour la promotion</h3>
+            <div class="promotion-options">
+                <!-- Les pièces seront ajoutées dynamiquement ici -->
+            </div>
+        </div>
+    </div>
+    
+    <div id="game-end-modal" class="modal" style="display: none;">
+        <div class="modal-content">
+            <h3 id="game-end-message"></h3>
+            <button id="play-again">Jouer à nouveau</button>
+        </div>
+    </div>
+    <script src="scripts-v2.js"></script>
+</body>
+</html>
