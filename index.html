@@ -37,39 +37,39 @@
             <h2>Niveau de l'IA</h2>
             <div class="difficulty-options">
                 <button data-difficulty="Noob" class="difficulty-button">
-                    <span>Débutant</span>
+                    <span>Jean Noob (ELO: 800)</span>
                     <div class="level-indicator"><div class="level-bar" style="width: 10%"></div></div>
                 </button>
                 <button data-difficulty="Easy" class="difficulty-button">
-                    <span>Facile</span>
+                    <span>Pierre Facile (ELO: 1000)</span>
                     <div class="level-indicator"><div class="level-bar" style="width: 25%"></div></div>
                 </button>
                 <button data-difficulty="Regular" class="difficulty-button">
-                    <span>Normal</span>
+                    <span>Marc Normal (ELO: 1200)</span>
                     <div class="level-indicator"><div class="level-bar" style="width: 40%"></div></div>
                 </button>
                 <button data-difficulty="Hard" class="difficulty-button">
-                    <span>Difficile</span>
+                    <span>Luc Difficile (ELO: 1400)</span>
                     <div class="level-indicator"><div class="level-bar" style="width: 60%"></div></div>
                 </button>
                 <button data-difficulty="Very Hard" class="difficulty-button">
-                    <span>Très Difficile</span>
+                    <span>Victor Très Difficile (ELO: 1600)</span>
                     <div class="level-indicator"><div class="level-bar" style="width: 75%"></div></div>
                 </button>
                 <button data-difficulty="Super Hard" class="difficulty-button">
-                    <span>Expert</span>
+                    <span>Sacha Expert (ELO: 1800)</span>
                     <div class="level-indicator"><div class="level-bar" style="width: 85%"></div></div>
                 </button>
                 <button data-difficulty="Magnus Carlsen" class="difficulty-button">
-                    <span>Magnus Carlsen</span>
+                    <span>Magnus Carlsen (ELO: 2850)</span>
                     <div class="level-indicator"><div class="level-bar" style="width: 95%"></div></div>
                 </button>
                 <button data-difficulty="Unbeatable" class="difficulty-button">
-                    <span>Imbattable</span>
+                    <span>Invinci Bill (ELO: 3000)</span>
                     <div class="level-indicator"><div class="level-bar" style="width: 100%"></div></div>
                 </button>
                 <button data-difficulty="Adaptative" class="difficulty-button">
-                    <span>Adaptative</span>
+                    <span>Adam Adaptatif (ELO: variable)</span>
                     <div class="level-indicator"><div class="level-bar adaptive"></div></div>
                 </button>
             </div>
@@ -85,7 +85,7 @@
                         </div>
                         <div class="player-details">
                             <span class="player-name">Joueur Noir</span>
-                            <span class="player-rating">1200</span>
+                            <span class="player-1-rating">1200</span>
                         </div>
                         <div class="time-display" id="black-time">10:00</div>
                     </div>
@@ -115,7 +115,7 @@
                         </div>
                         <div class="player-details">
                             <span class="player-name">Joueur Blanc</span>
-                            <span class="player-rating">1200</span>
+                            <span class="player-2-rating">1200</span>
                         </div>
                         <div class="time-display" id="white-time">10:00</div>
                     </div>
@@ -123,6 +123,13 @@
                 </div>
             </div>
         </div>
+    </div>
+
+    <div id="statistics">
+        <span id="games-played">0</span> parties,
+        <span id="wins">0</span> victoires,
+        <span id="losses">0</span> défaites,
+        <span id="draws">0</span> nuls.
     </div>
 
     <!-- Modals -->
@@ -152,5 +159,6 @@
     </div>
 
     <script src="scripts-v2.js"></script>
+    <script src="stockfish.js"></script>
 </body>
 </html>

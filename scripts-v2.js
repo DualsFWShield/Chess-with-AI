@@ -24,6 +24,7 @@ let currentPlayer = 'white';
 let whiteTime = 600;
 let blackTime = 600;
 let timerInterval;
+let enPassantTarget = null;
 
 // Game statistics
 let gamesPlayed = 0, wins = 0, losses = 0, draws = 0;
@@ -82,6 +83,22 @@ function updateProgressBar() {
     document.getElementById('black-progress').style.width = `${blackPercentage}%`;
 }
 
+function updateRatingDisplay() {
+    // Pour une partie contre l'IA, le joueur 1 est le joueur humain et le joueur 2 est l'IA.
+    // En mode humain vs humain, vous pouvez adapter l'affichage.
+    const player1RatingEl = document.querySelector('.player-1-rating');
+    const player2RatingEl = document.querySelector('.player-2-rating');
+    
+    if (gameMode === 'ai') {
+        player1RatingEl.textContent = playerRating;
+        player2RatingEl.textContent = aiRating;
+    } else {
+        // Par exemple, pour le mode humain vs humain, on pourrait afficher les ratings initiaux ou les laisser vides.
+        player1RatingEl.textContent = playerRating;
+        player2RatingEl.textContent = playerRating;
+    }
+}
+
 function checkAndUpdateKingStatus() {
     if (isKingInCheck('white')) {
         updateGameStatus('Échec au roi blanc !');
@@ -121,6 +138,7 @@ function startGame() {
     updateCapturedPieces();
     updateProgressBar();
     startTimer();
+    updateRatingDisplay();
 }
 
 // --- Timer functions ---
@@ -402,6 +420,72 @@ function isKingInCheckForBoard(board, color) {
     return false;
 }
 
+// Initialisation de Stockfish dans un worker
+let stockfish;
+function initStockfish() {
+    stockfish = new Worker('stockfish.js');
+    stockfish.postMessage('uci');
+    stockfish.onmessage = function(event) {
+        // Optionnel: console.log("Stockfish:", event.data);
+    };
+}
+initStockfish();
+
+function boardToFEN(board) {
+    // La notation FEN attend que la première ligne corresponde à la rangée 8 (board[0])
+    let fenRows = [];
+    for (let r = 0; r < 8; r++) {
+        let rowFen = "";
+        let emptyCount = 0;
+        for (let c = 0; c < 8; c++) {
+            const piece = board[r][c];
+            if (!piece || piece === "") {
+                emptyCount++;
+            } else {
+                if (emptyCount > 0) {
+                    rowFen += emptyCount;
+                    emptyCount = 0;
+                }
+                rowFen += piece;
+            }
+        }
+        if (emptyCount > 0) rowFen += emptyCount;
+        fenRows.push(rowFen);
+    }
+    const piecePlacement = fenRows.join('/');
+
+    // Déterminer le joueur actif (nous utilisons la variable globale currentPlayer)
+    const activeColor = currentPlayer === 'white' ? 'w' : 'b';
+
+    // Déduire les droits de roque
+    let castling = "";
+    // Pour les blancs : le roi doit être sur e1 (board[7][4])
+    if (board[7][4] === 'K') {
+        if (board[7][7] === 'R') castling += "K"; // roque côté roi
+        if (board[7][0] === 'R') castling += "Q"; // roque côté dame
+    }
+    // Pour les noirs : le roi doit être sur e8 (board[0][4])
+    if (board[0][4] === 'k') {
+        if (board[0][7] === 'r') castling += "k";
+        if (board[0][0] === 'r') castling += "q";
+    }
+    if (castling === "") castling = "-";
+
+    // Case en passant
+    let ep = "-";
+    if (enPassantTarget) {
+        const files = ['a','b','c','d','e','f','g','h'];
+        // enPassantTarget est un tableau [row, col] et le rang correspond à 8 - row.
+        ep = files[enPassantTarget[1]] + (8 - enPassantTarget[0]);
+    }
+    
+    // Pour simplifier, nous fixons le compteur de demi-coups et le numéro complet
+    const halfmoveClock = 0;
+    const fullmoveNumber = 1;  // Vous pouvez ajuster ce nombre selon l'évolution de la partie
+
+    return `${piecePlacement} ${activeColor} ${castling} ${ep} ${halfmoveClock} ${fullmoveNumber}`;
+}
+
 // --- AI functions ---
 function aiMakeMove() {
     setTimeout(() => {
@@ -411,167 +495,125 @@ function aiMakeMove() {
             clearInterval(timerInterval);
             return;
         }
-        
-        // Si un coup permettant de capturer le roi est disponible, le choisir de préférence
-        const kingCaptureMoves = moves.filter(m => {
-            const target = initialBoard[m.to.row][m.to.col];
-            return target === 'K' || target === 'k';
-        });
-        let chosenMove;
 
-        if (kingCaptureMoves.length > 0) {
-            chosenMove = kingCaptureMoves[Math.floor(Math.random() * kingCaptureMoves.length)];
+        const difficultyLower = aiDifficulty.toLowerCase();
+        let searchDepth;
+
+        // Définir la profondeur de recherche selon le niveau
+        if (difficultyLower === 'noob') {
+            searchDepth = 1;
+        } else if (difficultyLower === 'easy') {
+            searchDepth = 2;
+        } else if (difficultyLower === 'regular') {
+            searchDepth = 3;
+        } else if (difficultyLower === 'hard') {
+            searchDepth = 4;
+        } else if (difficultyLower === 'adaptative') {
+            const ratingDiff = aiRating - playerRating;
+            if (ratingDiff < -300) {
+                searchDepth = 1;
+            } else if (ratingDiff < -100) {
+                searchDepth = 2;
+            } else if (ratingDiff < 100) {
+                searchDepth = 3;
+            } else if (ratingDiff < 300) {
+                searchDepth = 4;
+            } else {
+                searchDepth = 5;
+            }
+        }
+        // Pour les niveaux très élevés et imbattables,
+        // on utilise une profondeur beaucoup plus importante.
+        else if (difficultyLower === 'very hard') {
+            searchDepth = 6;
+        } else if (difficultyLower === 'super hard') {
+            searchDepth = 8;
+        } else if (difficultyLower === 'magnus carlsen') {
+            searchDepth = 12;
+        } else if (difficultyLower === 'unbeatable') {
+            searchDepth = 15;
         } else {
-            const difficultyLower = aiDifficulty.toLowerCase();
-            
-            if (difficultyLower === 'adaptative') {
-                // Calculer la différence de rating pour ajuster la difficulté
-                const ratingDiff = aiRating - playerRating;
-                let searchDepth, moveQuality;
-
-                // Ajuster les paramètres en fonction de la différence de rating
-                if (ratingDiff < -300) {
-                    // IA beaucoup plus faible
-                    searchDepth = 1;
-                    moveQuality = 0.3;
-                } else if (ratingDiff < -100) {
-                    // IA légèrement plus faible
-                    searchDepth = 2;
-                    moveQuality = 0.5;
-                } else if (ratingDiff < 100) {
-                    // Niveau similaire
-                    searchDepth = 2;
-                    moveQuality = 0.7;
-                } else if (ratingDiff < 300) {
-                    // IA légèrement plus forte
-                    searchDepth = 3;
-                    moveQuality = 0.8;
-                } else {
-                    // IA beaucoup plus forte
-                    searchDepth = 3;
-                    moveQuality = 0.9;
-                }
-
-                // Évaluer tous les coups possibles
-                const evaluatedMoves = moves.map(move => {
-                    const newBoard = applyMoveOnBoard(initialBoard, move);
-                    const score = minimax(newBoard, searchDepth - 1, false, -Infinity, Infinity);
-                    return { move, score };
-                });
-
-                // Trier les coups par score
-                evaluatedMoves.sort((a, b) => b.score - a.score);
-
-                // Sélectionner un coup en fonction de la qualité de jeu
-                if (Math.random() < moveQuality) {
-                    // Prendre un des meilleurs coups
-                    const topMoves = evaluatedMoves.slice(0, Math.max(1, Math.floor(moves.length * 0.2)));
-                    chosenMove = topMoves[Math.floor(Math.random() * topMoves.length)].move;
-                } else {
-                    // Prendre un coup moyen ou faible
-                    const otherMoves = evaluatedMoves.slice(Math.floor(moves.length * 0.2));
-                    chosenMove = otherMoves.length > 0 
-                        ? otherMoves[Math.floor(Math.random() * otherMoves.length)].move
-                        : evaluatedMoves[0].move;
-                }
-
-                // Log pour debug
-                console.log(`Rating diff: ${ratingDiff}, Depth: ${searchDepth}, Quality: ${moveQuality}`);
-            } else {
-                // Garder la logique existante pour les autres niveaux
-                if (difficultyLower === 'noob') {
-                    chosenMove = moves[Math.floor(Math.random() * moves.length)];
-                } else if (difficultyLower === 'easy') {
-                    const captureMoves = moves.filter(m => evaluateMove(m) > 0);
-                    chosenMove = (captureMoves.length > 0 && Math.random() < 0.5)
-                                ? captureMoves[Math.floor(Math.random() * captureMoves.length)]
-                                : moves[Math.floor(Math.random() * moves.length)];
-                } else if (difficultyLower === 'regular') {
-                    chosenMove = moves[Math.floor(Math.random() * moves.length)];
-                } else {
-                    // Pour les niveaux difficiles
-                    let bestScore = -Infinity;
-                    let bestMove = null;
-                    const searchDepth = 3;
+            // Par défaut, utiliser une profondeur de 2
+            searchDepth = 2;
+        }
+        
+        // Conversion du board en FEN et envoi à Stockfish
+        const fen = boardToFEN(initialBoard);
+        stockfish.postMessage(`position fen ${fen}`);
+        stockfish.postMessage(`go depth ${searchDepth}`);
+        
+        stockfish.onmessage = function(event) {
+            if (event.data.startsWith('bestmove')) {
+                const bestmove = event.data.split(' ')[1];
+                if (bestmove && bestmove !== '(none)') {
+                    // Conversion du coup UCI (ex: "e7e5") en indices sur le board
+                    const fileToCol = { a: 0, b: 1, c: 2, d: 3, e: 4, f: 5, g: 6, h: 7 };
+                    const fromFile = bestmove[0];
+                    const fromRank = bestmove[1];
+                    const toFile = bestmove[2];
+                    const toRank = bestmove[3];
+                    const fromCol = fileToCol[fromFile];
+                    const toCol = fileToCol[toFile];
+                    const fromRow = 8 - parseInt(fromRank);
+                    const toRow = 8 - parseInt(toRank);
                     
-                    for (const move of moves) {
-                        const newBoard = applyMoveOnBoard(initialBoard, move);
-                        const score = minimax(newBoard, searchDepth - 1, false, -Infinity, Infinity);
-                        if (score > bestScore) {
-                            bestScore = score;
-                            bestMove = move;
-                        }
+                    // Vérification de sécurité : capture du roi
+                    if (initialBoard[toRow][toCol] === 'K' || initialBoard[toRow][toCol] === 'k') {
+                        updateGameStatus('Partie terminée ! Le roi a été capturé par l\'IA.');
+                        endGame('black');
+                        return;
                     }
-                    chosenMove = bestMove;
+                    
+                    // Enregistrer une capture s'il y a une pièce sur la case cible
+                    if (initialBoard[toRow][toCol]) {
+                        const capturedPiece = initialBoard[toRow][toCol];
+                        if (capturedPiece === capturedPiece.toUpperCase())
+                            capturedBlack.push(capturedPiece.toLowerCase());
+                        else
+                            capturedWhite.push(capturedPiece.toUpperCase());
+                    }
+                    
+                    // Appliquer le coup
+                    initialBoard[toRow][toCol] = initialBoard[fromRow][fromCol];
+                    initialBoard[fromRow][fromCol] = '';
+                    
+                    // Promotion automatique pour les pions arrivant en fin de plateau
+                    if (initialBoard[toRow][toCol].toLowerCase() === 'p' && toRow === 7) {
+                        initialBoard[toRow][toCol] = 'q';
+                    }
+                    
+                    createBoard();
+                    updateCapturedPieces();
+                    updateProgressBar();
+                    checkAndUpdateKingStatus();
+                    updateRatingDisplay();
+                    
+                    if (isCheckmate('white')) {
+                        updateGameStatus('Échec et mat ! L\'IA gagne !');
+                        endGame('black');
+                        return;
+                    }
+                    if (isStalemate('white')) {
+                        updateGameStatus('Pat ! Match nul !');
+                        endGame('draw');
+                        return;
+                    }
+                    if (isKingInCheck('white')) {
+                        updateGameStatus('Échec au roi blanc !');
+                    }
+                    
+                    currentPlayer = 'white';
+                    updateRatingDisplay();
                 }
             }
-        }
-
-        // Appliquer le coup choisi
-        const fromRow = chosenMove.from.row;
-        const fromCol = chosenMove.from.col;
-        const toRow = chosenMove.to.row;
-        const toCol = chosenMove.to.col;
-        
-        // Détection de la capture du roi
-        if (initialBoard[toRow][toCol] === 'K' || initialBoard[toRow][toCol] === 'k') {
-            updateGameStatus('Partie terminée ! Le roi a été capturé par l\'IA.');
-            endGame('black');
-            return;
-        }
-
-        // Gestion des captures
-        if (initialBoard[toRow][toCol]) {
-            const capturedPiece = initialBoard[toRow][toCol];
-            if (capturedPiece === capturedPiece.toUpperCase()) {
-                capturedBlack.push(capturedPiece.toLowerCase());
-            } else {
-                capturedWhite.push(capturedPiece.toUpperCase());
-            }
-        }
-
-        // Déplacer la pièce
-        initialBoard[toRow][toCol] = initialBoard[fromRow][fromCol];
-        initialBoard[fromRow][fromCol] = '';
-
-        // Promotion automatique des pions
-        if (initialBoard[toRow][toCol].toLowerCase() === 'p' && toRow === 7) {
-            initialBoard[toRow][toCol] = 'q';
-        }
-
-        // Mettre à jour l'interface
-        createBoard();
-        updateCapturedPieces();
-        updateProgressBar();
-        checkAndUpdateKingStatus();
-
-        // Vérifier l'échec et mat ou le pat
-        if (isCheckmate('white')) {
-            updateGameStatus('Échec et mat ! L\'IA gagne !');
-            endGame('black');
-            return;
-        }
-        if (isStalemate('white')) {
-            updateGameStatus('Pat ! Match nul !');
-            endGame('draw');
-            return;
-        }
-
-        // Vérifier l'échec simple
-        if (isKingInCheck('white')) {
-            updateGameStatus('Échec au roi blanc !');
-        }
-
-        currentPlayer = 'white';
-        
-        // Mettre à jour l'affichage des ratings
-        updateRatingDisplay();
+        };
     }, 500);
 }
 
 // --- Board creation & game logic ---
 function createBoard() {
     chessboard.innerHTML = '';
+    const files = ['a','b','c','d','e','f','g','h'];
     initialBoard.forEach((row, rowIndex) => {
         row.forEach((piece, colIndex) => {
             const square = document.createElement('div');
@@ -579,7 +621,16 @@ function createBoard() {
             square.classList.add((rowIndex + colIndex) % 2 === 0 ? 'light' : 'dark');
             square.dataset.row = rowIndex;
             square.dataset.col = colIndex;
-            if (piece) square.textContent = pieces[piece];
+            // Afficher la pièce (si présente)
+            if (piece) {
+                square.textContent = pieces[piece];
+            }
+            // Ajouter un label avec le nom de la case
+            const label = document.createElement('span');
+            label.className = 'square-label';
+            label.textContent = `${files[colIndex]}${8 - rowIndex}`;
+            square.appendChild(label);
+            
             square.addEventListener('click', handleSquareClick);
             chessboard.appendChild(square);
         });
@@ -616,12 +667,14 @@ function getPossibleMovesWithoutCheck(piece, row, col, board = initialBoard) {
         case 'p': {
             const direction = color === 'white' ? -1 : 1;
             const startRow = color === 'white' ? 6 : 1;
+            // Forward move
             if (row + direction >= 0 && row + direction < 8 && !board[row + direction][col]) {
                 moves.push([row + direction, col]);
                 if (row === startRow && !board[row + 2 * direction][col]) {
                     moves.push([row + 2 * direction, col]);
                 }
             }
+            // Regular diagonal captures
             if (col > 0 && row + direction >= 0 && row + direction < 8) {
                 const leftPiece = board[row + direction][col - 1];
                 if (leftPiece && (leftPiece.toUpperCase() === leftPiece ? 'white' : 'black') !== color) {
@@ -633,6 +686,12 @@ function getPossibleMovesWithoutCheck(piece, row, col, board = initialBoard) {
                 if (rightPiece && (rightPiece.toUpperCase() === rightPiece ? 'white' : 'black') !== color) {
                     moves.push([row + direction, col + 1]);
                 }
+            }
+            // En passant: if enPassantTarget is set and lies exactly one square diagonally forward.
+            if (enPassantTarget &&
+                enPassantTarget[0] === row + direction &&
+                Math.abs(enPassantTarget[1] - col) === 1) {
+                moves.push([row + direction, enPassantTarget[1]]);
             }
             break;
         }
@@ -804,12 +863,14 @@ function getPossibleMovesForBoard(piece, board, row, col) {
         case 'p': {
             const direction = color === 'white' ? -1 : 1;
             const startRow = color === 'white' ? 6 : 1;
+            // Forward move
             if (row + direction >= 0 && row + direction < 8 && !board[row + direction][col]) {
                 moves.push([row + direction, col]);
                 if (row === startRow && !board[row + 2 * direction][col]) {
                     moves.push([row + 2 * direction, col]);
                 }
             }
+            // Regular diagonal captures
             if (col > 0 && row + direction >= 0 && row + direction < 8) {
                 const leftPiece = board[row + direction][col - 1];
                 if (leftPiece && (leftPiece.toUpperCase() === leftPiece ? 'white' : 'black') !== color) {
@@ -821,6 +882,12 @@ function getPossibleMovesForBoard(piece, board, row, col) {
                 if (rightPiece && (rightPiece.toUpperCase() === rightPiece ? 'white' : 'black') !== color) {
                     moves.push([row + direction, col + 1]);
                 }
+            }
+            // En passant: if enPassantTarget is set and lies exactly one square diagonally forward.
+            if (enPassantTarget &&
+                enPassantTarget[0] === row + direction &&
+                Math.abs(enPassantTarget[1] - col) === 1) {
+                moves.push([row + direction, enPassantTarget[1]]);
             }
             break;
         }
@@ -896,9 +963,18 @@ function getPossibleMovesForBoard(piece, board, row, col) {
 }
 
 function highlightMoves(moves) {
-    document.querySelectorAll('.square').forEach(square => square.classList.remove('highlight'));
+    document.querySelectorAll('.square').forEach(square => {
+        square.classList.remove('highlight');
+        square.classList.remove('capture');
+    });
+    
     moves.forEach(([r, c]) => {
-        document.querySelector(`.square[data-row="${r}"][data-col="${c}"]`).classList.add('highlight');
+        const square = document.querySelector(`.square[data-row="${r}"][data-col="${c}"]`);
+        square.classList.add('highlight');
+        // Si la case contient déjà une pièce, c'est un mouvement de capture
+        if (initialBoard[r][c] !== "") {
+            square.classList.add('capture');
+        }
     });
 }
 
@@ -911,45 +987,67 @@ function handleSquareClick(event) {
     if (selectedPiece) {
         const fromRow = parseInt(selectedPiece.dataset.row);
         const fromCol = parseInt(selectedPiece.dataset.col);
-        const piece = initialBoard[fromRow][fromCol];
-        const moves = getPossibleMoves(piece, fromRow, fromCol);
+        const movingPiece = initialBoard[fromRow][fromCol];
+        const moves = getPossibleMoves(movingPiece, fromRow, fromCol);
 
+        // Si coup en passant : déplacement diagonal vers une case vide
+        if (
+            movingPiece.toLowerCase() === 'p' &&
+            Math.abs(col - fromCol) === 1 &&
+            !initialBoard[row][col]
+        ) {
+            if (currentPlayer === 'white') {
+                // Pour blanc, le pion capturé se trouve à la ligne suivante (row+1)
+                capturedBlack.push(initialBoard[row + 1][col].toLowerCase());
+                initialBoard[row + 1][col] = '';
+            } else {
+                capturedWhite.push(initialBoard[row - 1][col].toUpperCase());
+                initialBoard[row - 1][col] = '';
+            }
+        }
+
+        // Vérifier que le mouvement est bien légal avant de modifier le plateau
         if (moves.some(([r, c]) => r === row && c === col)) {
-            // Gestion du roque
-            if (piece.toLowerCase() === 'k' && Math.abs(col - fromCol) === 2) {
+
+            // Gérer le roque
+            if (movingPiece.toLowerCase() === 'k' && Math.abs(col - fromCol) === 2) {
                 const isKingside = col > fromCol;
                 const rookFromCol = isKingside ? 7 : 0;
                 const rookToCol = isKingside ? col - 1 : col + 1;
-                
-                // Déplacer la tour
                 initialBoard[row][rookToCol] = initialBoard[row][rookFromCol];
                 initialBoard[row][rookFromCol] = '';
             }
+
+            // Vérification de capture du roi (sécurité)
             if (initialBoard[row][col] === 'k' || initialBoard[row][col] === 'K') {
                 updateGameStatus('Partie terminée ! Le roi a été capturé.');
                 endGame(currentPlayer === 'white' ? 'white' : 'black');
                 return;
             }
-            if (initialBoard[row][col]) {
+
+            // Si le carré de destination contenait une pièce, l'enregistrer comme capture
+            if (initialBoard[row][col] && (row !== fromRow || col !== fromCol)) {
                 const capturedPiece = initialBoard[row][col];
                 if (capturedPiece === capturedPiece.toUpperCase())
                     capturedBlack.push(capturedPiece.toLowerCase());
                 else
                     capturedWhite.push(capturedPiece.toUpperCase());
             }
-            initialBoard[row][col] = initialBoard[fromRow][fromCol];
+
+            // Déplacer la pièce
+            initialBoard[row][col] = movingPiece;
             initialBoard[fromRow][fromCol] = '';
 
-            // Promotion du pion
-            if (initialBoard[row][col].toLowerCase() === 'p' && (row === 0 || row === 7)) {
-                showPromotionModal(currentPlayer, (piece) => {
-                    initialBoard[row][col] = currentPlayer === 'white' ? piece.toUpperCase() : piece;
+            // Gérer la promotion du pion
+            if (movingPiece.toLowerCase() === 'p' && (row === 0 || row === 7)) {
+                showPromotionModal(currentPlayer, (promoPiece) => {
+                    initialBoard[row][col] = currentPlayer === 'white'
+                        ? promoPiece.toUpperCase()
+                        : promoPiece;
                     createBoard();
                     updateCapturedPieces();
                     updateProgressBar();
                     checkAndUpdateKingStatus();
-                    if (isKingInCheck('white')) updateGameStatus('Échec au roi blanc !');
-                    else if (isKingInCheck('black')) updateGameStatus('Échec au roi noir !');
                     currentPlayer = currentPlayer === 'white' ? 'black' : 'white';
                     if (gameMode === 'ai' && currentPlayer === 'black') {
                         aiMakeMove();
@@ -958,12 +1056,19 @@ function handleSquareClick(event) {
                 return;
             }
 
+            // Mettre à jour en passant : si le pion a avancé de 2 cases
+            if (movingPiece.toLowerCase() === 'p' && Math.abs(row - fromRow) === 2) {
+                enPassantTarget = [(row + fromRow) / 2, col];
+            } else {
+                enPassantTarget = null;
+            }
+
             createBoard();
             updateCapturedPieces();
             updateProgressBar();
             checkAndUpdateKingStatus();
 
-            // Vérifier l'échec et mat ou le pat
+            // Vérifier échec et mat ou pat
             const nextPlayer = currentPlayer === 'white' ? 'black' : 'white';
             if (isCheckmate(nextPlayer)) {
                 updateGameStatus(`Échec et mat ! Les ${currentPlayer === 'white' ? 'Blancs' : 'Noirs'} gagnent !`);
@@ -976,7 +1081,6 @@ function handleSquareClick(event) {
                 return;
             }
 
-            // Vérifier l'échec simple
             if (isKingInCheck(nextPlayer)) {
                 updateGameStatus(`Échec au roi ${nextPlayer === 'white' ? 'blanc' : 'noir'} !`);
             }
@@ -984,20 +1088,20 @@ function handleSquareClick(event) {
             currentPlayer = nextPlayer;
             selectedPiece = null;
             highlightMoves([]);
-            // En mode IA, lance le coup de l'IA après le tour blanc.
+
             if (gameMode === 'ai' && currentPlayer === 'black') {
                 aiMakeMove();
             }
-            return;
+        } else {
+            selectedPiece = null;
+            highlightMoves([]);
         }
-        selectedPiece = null;
-        highlightMoves([]);
-    } else if (piece && (piece === piece.toUpperCase() ? 'white' : 'black') === currentPlayer) {
+    } else if (piece && ((piece === piece.toUpperCase() ? 'white' : 'black') === currentPlayer)) {
         selectedPiece = square;
         const moves = getPossibleMoves(piece, row, col);
         highlightMoves(moves);
     }
-    updateProgressBar()
+    updateProgressBar();
     checkAndUpdateKingStatus();
 }
 

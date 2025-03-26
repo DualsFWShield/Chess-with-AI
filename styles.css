@@ -206,6 +206,14 @@ header {
     position: relative;
     color: #000;
 }
+.square-label {
+    position: absolute;
+    bottom: 2px;
+    right: 2px;
+    font-size: 0.3em;
+    color: rgba(0,0,0,0.5);
+    pointer-events: none;
+}
 .square:hover::after {
     content: '';
     position: absolute;
@@ -222,17 +230,29 @@ header {
     transform: translate(-50%, -50%);
     pointer-events: none;
 }
-.square.highlight:empty::after {
-    width: 8px;
-    height: 8px;
-    background: rgba(168, 171, 179, 0.9);
+.square.highlight:not(.capture)::after {
+    content: '';
+    position: absolute;
+    width: 0.3em;
+    height: 0.3em;
+    background: rgba(168, 171, 179, 1);
     border-radius: 50%;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
 }
-.square.highlight:not(:empty)::after {
-    width: 52px;
-    height: 52px;
-    border: 3px solid rgba(168, 171, 179, 0.9);
+
+/* Pour une case où l'on peut capturer (case non vide) : cercle avec bordure */
+.square.highlight.capture::after {
+    content: '';
+    position: absolute;
+    width: 0.8em;
+    height: 0.8em;
+    border: 0.15em solid rgba(168, 171, 179, 1);
     border-radius: 50%;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
     background: transparent;
 }
 /* Couleurs des cases & pièces */
@@ -368,6 +388,12 @@ header {
     max-width: 500px;
     margin: 20px;
     box-shadow: 0 16px 32px rgba(0,0,0,0.2);
+    text-align: center; /* Ajouté pour centrer le texte */
+}
+
+.modal .modal-header, 
+.modal .modal-footer {
+    text-align: center;
 }
 .promotion-options {
     display: flex;
